@@ -27,14 +27,12 @@ def get_top_n(pred, n=10):
     # 得到前n个value最大对key
     n1 = defaultdict(list) #如果没有则返回[]
     #对于每个user分别采集
-    for u,i,e, _ in pred:
+    for u, i, true_r, e, _ in pred:
         n1[u].append((i, e))
     # 每一个用户取最高对几个item
     for key, val in n1.items():
-        n1[u] = nlargest(n, val, key=lambda s: s[1])
+        n1[key] = nlargest(n, val, key=lambda s: s[1])
     return n1
-
-
 
 def user_build_anti_testset(train, uid, f=None):
     # 为用户生成测试集
@@ -114,7 +112,40 @@ class PredictionSet():
 def collaborative_filtering(raw_uid):
     # To read the data from a txt file
     # TODO: To modify the file path of the data set
-    file_path = ""
+        # =============== 数据预处理 ===========================
+    # 将数据库中的所有数据读取转换到文件
+    # dir_data = '/www/wwwroot/music_recommender/page/cf_recommendation/cf_data'
+    dir_data = './collaborative_filtering/cf_data'
+    file_path = '{}/dataset_user_5.txt'.format(dir_data)
+    if not os.path.exists(dir_data):
+        os.makedirs(dir_data)
+
+    # 数据库操作
+    # 打开数据库连接
+    db = pymysql.connect("localhost",
+                         "root",
+                         "password",
+                         "music_recommender",
+                         charset='utf8')
+
+    # 使用 cursor() 方法创建一个游标对象 cursor
+    cursor = db.cursor()
+    print(11)
+
+    sql = """SELECT uid, song_id, rating
+              FROM user_rating
+               WHERE 1"""
+    cursor.execute(sql)
+    results = cursor.fetchall()
+    with open(file_path, "w+") as data_f:
+        for result in results:
+            uid, song_id, rating = result
+
+            data_f.writelines("{}\t{}\t{}\n".format(uid, song_id, rating))
+
+    if not os.path.exists(file_path):
+        raise IOError("Dataset file is not exists!")
+    # file_path = ""
 
     reader = Reader(line_format='user item rating', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
@@ -194,7 +225,8 @@ def collaborative_filtering(raw_uid):
         return items_baselineonly
     else:
         result = nlargest(5, rank, key=lambda s: rank[s])
+        print("排名结果: {}".format(result))
         return result
     
-
+collaborative_filtering('b80344d063b5ccb3212f76538f3d9e43d87dca9e')
     
