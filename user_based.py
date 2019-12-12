@@ -17,7 +17,57 @@ from surprise import BaselineOnly
 from surprise import KNNBasic
 from surprise import KNNBaseline
 from heapq import nlargest
+import numpy as np
 
+'''
+@description: 对算法的评价
+@Author: JeanneWu
+'''
+def evaluation(data, result):
+    recallArr = {}
+    # 先计算recall 3分(包含3分)以上的标记为喜欢
+    for songId in result:
+        TP = 0
+        P = 0
+        for rating in data[songId]:
+            P += 1
+            if int(rating) > 2:
+                TP += 1
+        recallArr[songId] = (round(TP/P, 4))
+    # print(recallArr)
+    # 用RMSE来评判算法
+
+
+
+
+'''
+@description: define sigmoid function
+@Author: JeanneWu
+'''
+def sigmoid(x):
+    return 1/(1+np.exp(-x))
+
+def evaluationMSE(data, raw_uid):
+    iidDict = {}
+    estiResult = {}
+    for results in data:
+        for key in results.keys():
+            for recommendations in results[key]:
+                iid, rating, true_score = recommendations
+                if iid in iidDict:
+                    iidDict[iid].append((rating - true_score)**2)
+                else:
+                    iidDict[iid] = [(rating - true_score)**2] 
+    for key in iidDict:
+        num = len(iidDict[key])
+        sum = 0
+        for value in iidDict[key]:
+            print(float(value))
+            sum += float(value)
+        # print(sum)
+        estiResult[key] = ('%.10f' % (sum/num))
+    print(estiResult)
+    #     (estimate - true_score)**2
 
 '''
 @description: 
@@ -27,11 +77,12 @@ def get_top_n(pred, n=10):
     # 得到前n个value最大对key
     n1 = defaultdict(list) #如果没有则返回[]
     #对于每个user分别采集
-    for u, i, true_r, e, _ in pred:
-        n1[u].append((i, e))
+    for u, i, r_ui, e, _ in pred:
+        n1[u].append((i, e, r_ui))
     # 每一个用户取最高对几个item
     for key, val in n1.items():
         n1[key] = nlargest(n, val, key=lambda s: s[1])
+    # print(n1)
     return n1
 
 def user_build_anti_testset(train, uid, f=None):
@@ -46,10 +97,11 @@ def user_build_anti_testset(train, uid, f=None):
     test += [(uid, train.to_raw_iid(i), f) for
                      i in train.all_items() if
                      i not in item]
+    # print(test, 'test ==')
     return test
 
 '''
-@description: this is a class about KNN
+@description: this is a class about KNNBasic
 @Author: JeanneWu
 '''
 class PredictionSet():
@@ -69,7 +121,6 @@ class PredictionSet():
             self.r_uid = raw_user_id
             self.i_uid = trainset.to_inner_uid(raw_user_id)
             self.knn_userset = self.algorithm.get_neighbors(self.i_uid, self.k) # 得到K个最相似的用户
-            print(self.knn_userset,'knn_userset')
             
             #把j去重后放到user_items里面
        
@@ -105,8 +156,10 @@ class PredictionSet():
         user_items_func = set(temArr)
         return user_items_func
 
+
+
 '''
-@description: this is a function about collaborative_filtering
+@description: this is a main function about collaborative_filtering
 @Author: SuSu
 '''
 def collaborative_filtering(raw_uid):
@@ -130,42 +183,52 @@ def collaborative_filtering(raw_uid):
 
     # 使用 cursor() 方法创建一个游标对象 cursor
     cursor = db.cursor()
-    print(11)
-
+    songData = defaultdict(list)
     sql = """SELECT uid, song_id, rating
               FROM user_rating
                WHERE 1"""
     cursor.execute(sql)
     results = cursor.fetchall()
     with open(file_path, "w+") as data_f:
-        # print(data_f)
-        # exit()
+        a = 0
         for result in results:
             uid, song_id, rating = result
-
+            if song_id in songData:
+                songData[song_id].append(rating)
+            else:
+                songData[song_id] = [rating]
+            
             data_f.writelines("{}\t{}\t{}\n".format(uid, song_id, rating))
-
+            a += 1
+  
     if not os.path.exists(file_path):
         raise IOError("Dataset file is not exists!")
     # file_path = ""
 
     reader = Reader(line_format='user item rating', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
-    
     # Build the training set
     trainset = data.build_full_trainset()
-    # print(trainset)
-    # exit()
-    # Baselineonly
+  
     bsl_options = {'method': 'sgd',
                     'learning_rate': 0.0005,
                  }
     algo_BaselineOnly = BaselineOnly(bsl_options=bsl_options)
-    algo_BaselineOnly.fit(trainset)
+    algo_BaselineOnly.fit(trainset) #训练模型
 
     rset = user_build_anti_testset(trainset, raw_uid)
     predictions = algo_BaselineOnly.test(rset)
-    top_n_baselineonly = get_top_n(predictions, n=5)
+    top_n_baselineonly = get_top_n(predictions, n=10)
+    # print(predictions)
+    # uid    原生用户id
+    # iid    原生项目id
+    # r_ui    浮点型的真实评分
+    # est    浮点型的预测评分
+    # details    预测相关的其他详细信息
+    # Prediction(uid='b80344d063b5ccb3212f76538f3d9e43d87dca9e', iid='18137225', 
+    # r_ui=3.2522878625134264, est=3.18721820094259, details={'was_impossible': False}),
+    print(top_n_baselineonly, 'top_n_baselineonly')
+    
 
     # KNNBasic
     sim_options = {'name': 'pearson', 'user_based': True}
@@ -173,10 +236,12 @@ def collaborative_filtering(raw_uid):
     algo_KNNBasic.fit(trainset)
 
     predictor = PredictionSet(algo_KNNBasic, trainset, raw_uid)
+  
     knn_anti_set = predictor.user_build_anti_testset()
     predictions = algo_KNNBasic.test(knn_anti_set)
-    top_n_knnbasic = get_top_n(predictions, n=5)
 
+    top_n_knnbasic = get_top_n(predictions, n=1000)
+    # print(predictions, 'top_n_knnbasic')
     # KNNBaseline
     sim_options = {'name': 'pearson_baseline', 'user_based': True}
     algo_KNNBaseline = KNNBaseline(sim_options=sim_options)
@@ -185,32 +250,33 @@ def collaborative_filtering(raw_uid):
     predictor = PredictionSet(algo_KNNBaseline, trainset, raw_uid)
     knn_anti_set = predictor.user_build_anti_testset()
     predictions = algo_KNNBaseline.test(knn_anti_set)
-    top_n_knnbaseline = get_top_n(predictions, n=5)
-    
+    top_n_knnbaseline = get_top_n(predictions, n=1000)
+
+    evaluationMSE([top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline], raw_uid)
+
     recommendset = set()
     for results in [top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline]:
-        print(top_n_baselineonly)
         for key in results.keys():
             for recommendations in results[key]:
-                iid, rating = recommendations
+                iid, rating, true_score = recommendations
                 recommendset.add(iid)
 
     items_baselineonly = set()
     for key in top_n_baselineonly.keys():
         for recommendations in top_n_baselineonly[key]:
-            iid, rating = recommendations
+            iid, rating, true_score = recommendations
             items_baselineonly.add(iid)
 
     items_knnbasic = set()
     for key in top_n_knnbasic.keys():
         for recommendations in top_n_knnbasic[key]:
-            iid, rating = recommendations
+            iid, rating, true_score = recommendations
             items_knnbasic.add(iid)
 
     items_knnbaseline = set()
     for key in top_n_knnbaseline.keys():
         for recommendations in top_n_knnbaseline[key]:
-            iid, rating = recommendations
+            iid, rating, true_score = recommendations
             items_knnbaseline.add(iid)
 
     rank = dict()
@@ -228,9 +294,14 @@ def collaborative_filtering(raw_uid):
     if max_rank == 1:
         return items_baselineonly
     else:
-        result = nlargest(5, rank, key=lambda s: rank[s])
-        print("排名结果: {}".format(result))
+        resultAll = dict()
+        result = nlargest(10, rank, key=lambda s: rank[s])
+        for k in result:
+            resultAll[k] = rank[k]
+        print("排名结果: {}".format(resultAll))
+        evaluation(songData, resultAll)
+        
         return result
-    
+  
 collaborative_filtering('b80344d063b5ccb3212f76538f3d9e43d87dca9e')
     
