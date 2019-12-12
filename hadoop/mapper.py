@@ -69,7 +69,7 @@ class PredictionSet():
             self.r_uid = raw_user_id
             self.i_uid = trainset.to_inner_uid(raw_user_id)
             self.knn_userset = self.algorithm.get_neighbors(self.i_uid, self.k) # 得到K个最相似的用户
-            print(self.knn_userset,'knn_userset')
+            # print(self.knn_userset,'knn_userset')
             
             #把j去重后放到user_items里面
        
@@ -130,7 +130,6 @@ def collaborative_filtering(raw_uid):
 
     # 使用 cursor() 方法创建一个游标对象 cursor
     cursor = db.cursor()
-    print(11)
 
     sql = """SELECT uid, song_id, rating
               FROM user_rating
@@ -186,51 +185,63 @@ def collaborative_filtering(raw_uid):
     knn_anti_set = predictor.user_build_anti_testset()
     predictions = algo_KNNBaseline.test(knn_anti_set)
     top_n_knnbaseline = get_top_n(predictions, n=5)
-    
-    recommendset = set()
-    for results in [top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline]:
-        print(top_n_baselineonly)
-        for key in results.keys():
-            for recommendations in results[key]:
-                iid, rating = recommendations
-                recommendset.add(iid)
+    # l = list(top_n_baselineonly)[0]
+    # a = list()
+    # a[l] = top_n_baselineonly[l]
+    # print(a)
+    # print(l,'predictions == ')
+    print({raw_uid: top_n_baselineonly[raw_uid]})
+    print({raw_uid: top_n_knnbasic[raw_uid]})
+    print({raw_uid: top_n_knnbasic[raw_uid]})
+    # recommendset = set()
+    # for results in [top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline]:
+    #     for key in results.keys():
+    #         for recommendations in results[key]:
+    #             iid, rating = recommendations
+    #             recommendset.add(iid)
 
-    items_baselineonly = set()
-    for key in top_n_baselineonly.keys():
-        for recommendations in top_n_baselineonly[key]:
-            iid, rating = recommendations
-            items_baselineonly.add(iid)
+    # items_baselineonly = set()
+    # for key in top_n_baselineonly.keys():
+    #     for recommendations in top_n_baselineonly[key]:
+    #         iid, rating = recommendations
+    #         items_baselineonly.add(iid)
 
-    items_knnbasic = set()
-    for key in top_n_knnbasic.keys():
-        for recommendations in top_n_knnbasic[key]:
-            iid, rating = recommendations
-            items_knnbasic.add(iid)
+    # items_knnbasic = set()
+    # for key in top_n_knnbasic.keys():
+    #     for recommendations in top_n_knnbasic[key]:
+    #         iid, rating = recommendations
+    #         items_knnbasic.add(iid)
 
-    items_knnbaseline = set()
-    for key in top_n_knnbaseline.keys():
-        for recommendations in top_n_knnbaseline[key]:
-            iid, rating = recommendations
-            items_knnbaseline.add(iid)
+    # items_knnbaseline = set()
+    # for key in top_n_knnbaseline.keys():
+    #     for recommendations in top_n_knnbaseline[key]:
+    #         iid, rating = recommendations
+    #         items_knnbaseline.add(iid)
 
-    rank = dict()
-    for recommendation in recommendset:
-        if recommendation not in rank:
-            rank[recommendation] = 0
-        if recommendation in items_baselineonly:
-            rank[recommendation] += 1
-        if recommendation in items_knnbasic:
-            rank[recommendation] += 1
-        if recommendation in items_knnbaseline:
-            rank[recommendation] += 1
+    # rank = dict()
+    # for recommendation in recommendset:
+    #     if recommendation not in rank:
+    #         rank[recommendation] = 0
+    #     if recommendation in items_baselineonly:
+    #         rank[recommendation] += 1
+    #     if recommendation in items_knnbasic:
+    #         rank[recommendation] += 1
+    #     if recommendation in items_knnbaseline:
+    #         rank[recommendation] += 1
 
-    max_rank = max(rank, key=lambda s: rank[s])
-    if max_rank == 1:
-        return items_baselineonly
-    else:
-        result = nlargest(5, rank, key=lambda s: rank[s])
-        print("排名结果: {}".format(result))
-        return result
-    
-collaborative_filtering('b80344d063b5ccb3212f76538f3d9e43d87dca9e')
+    # max_rank = max(rank, key=lambda s: rank[s])
+    # if max_rank == 1:
+    #     return items_baselineonly
+    # else:
+    #     result = nlargest(5, rank, key=lambda s: rank[s])
+    #     print("排名结果: {}".format(result))
+    #     return result
+
+# 这是入口
+for line in sys.stdin:
+    line = line.strip() 
+    # print(line)
+    # exit()
+    collaborative_filtering(line)
+    # collaborative_filtering('b80344d063b5ccb3212f76538f3d9e43d87dca9e')
     
