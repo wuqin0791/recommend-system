@@ -34,8 +34,7 @@ def evaluation(data, result):
             if int(rating) > 2:
                 TP += 1
         recallArr[songId] = (round(TP/P, 4))
-    # print(recallArr)
-    # 用RMSE来评判算法
+    return recallArr
 
 
 
@@ -62,12 +61,9 @@ def evaluationMSE(data, raw_uid):
         num = len(iidDict[key])
         sum = 0
         for value in iidDict[key]:
-            print(float(value))
             sum += float(value)
-        # print(sum)
         estiResult[key] = ('%.10f' % (sum/num))
-    print(estiResult)
-    #     (estimate - true_score)**2
+    return estiResult
 
 '''
 @description: 
@@ -82,7 +78,6 @@ def get_top_n(pred, n=10):
     # 每一个用户取最高对几个item
     for key, val in n1.items():
         n1[key] = nlargest(n, val, key=lambda s: s[1])
-    # print(n1)
     return n1
 
 def user_build_anti_testset(train, uid, f=None):
@@ -97,7 +92,6 @@ def user_build_anti_testset(train, uid, f=None):
     test += [(uid, train.to_raw_iid(i), f) for
                      i in train.all_items() if
                      i not in item]
-    # print(test, 'test ==')
     return test
 
 '''
@@ -164,8 +158,7 @@ class PredictionSet():
 '''
 def collaborative_filtering(raw_uid):
     # To read the data from a txt file
-    # TODO: To modify the file path of the data set
-        # =============== 数据预处理 ===========================
+    # =============== 数据预处理 ===========================
     # 将数据库中的所有数据读取转换到文件
     # dir_data = '/www/wwwroot/music_recommender/page/cf_recommendation/cf_data'
     dir_data = './collaborative_filtering/cf_data'
@@ -203,7 +196,6 @@ def collaborative_filtering(raw_uid):
   
     if not os.path.exists(file_path):
         raise IOError("Dataset file is not exists!")
-    # file_path = ""
 
     reader = Reader(line_format='user item rating', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
@@ -225,9 +217,7 @@ def collaborative_filtering(raw_uid):
     # r_ui    浮点型的真实评分
     # est    浮点型的预测评分
     # details    预测相关的其他详细信息
-    # Prediction(uid='b80344d063b5ccb3212f76538f3d9e43d87dca9e', iid='18137225', 
-    # r_ui=3.2522878625134264, est=3.18721820094259, details={'was_impossible': False}),
-    print(top_n_baselineonly, 'top_n_baselineonly')
+    # print(top_n_baselineonly, 'top_n_baselineonly')
     
 
     # KNNBasic
@@ -252,7 +242,7 @@ def collaborative_filtering(raw_uid):
     predictions = algo_KNNBaseline.test(knn_anti_set)
     top_n_knnbaseline = get_top_n(predictions, n=1000)
 
-    evaluationMSE([top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline], raw_uid)
+    evaluationMSEResult = evaluationMSE([top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline], raw_uid)
 
     recommendset = set()
     for results in [top_n_baselineonly, top_n_knnbasic, top_n_knnbaseline]:
@@ -291,6 +281,7 @@ def collaborative_filtering(raw_uid):
             rank[recommendation] += 1
 
     max_rank = max(rank, key=lambda s: rank[s])
+    evaluationMSEResult1 = {}
     if max_rank == 1:
         return items_baselineonly
     else:
@@ -298,10 +289,13 @@ def collaborative_filtering(raw_uid):
         result = nlargest(10, rank, key=lambda s: rank[s])
         for k in result:
             resultAll[k] = rank[k]
-        print("排名结果: {}".format(resultAll))
+        # print("排名结果: {}".format(resultAll))
         evaluation(songData, resultAll)
-        
-        return result
+        for key in evaluationMSEResult:
+            if key in resultAll:
+                evaluationMSEResult1[key] = evaluationMSEResult[key]
+        print(evaluationMSEResult1,'evaluationMSEResult1==') #最后的评估
+        return resultAll
   
 collaborative_filtering('b80344d063b5ccb3212f76538f3d9e43d87dca9e')
     
